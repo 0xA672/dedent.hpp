@@ -35,7 +35,8 @@ constexpr auto text = d::dedent<2>(R"(
 )");
 ```
 ### Handling Blank Lines
-Leading/trailing blank lines are removed automatically; internal blank lines become a single `\n`.
+* Blank lines at the very beginning and end of the input (containing only spaces, tabs, `\r`, `\f`, or `\v`) are removed entirely.
+* Internal blank lines are preserved; each contributes a single `\n` to the output.
 ```cpp
 constexpr auto poem = d::dedent(R"(
 
@@ -46,5 +47,6 @@ constexpr auto poem = d::dedent(R"(
     And so are you.
 
 )");
-// Result: "Roses are red,\nViolets are blue,\n\nSugar is sweet,\nAnd so are you.\n"
+// Resulting string_view content:
+// "Roses are red,\nViolets are blue,\n\nSugar is sweet,\nAnd so are you.\n"
 ```
