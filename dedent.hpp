@@ -79,15 +79,18 @@ constexpr auto dedent(const char (&in)[N]) {
     }
     if (ciw == std::string_view::npos) ciw = 0;
 
-    size_t tot = 0;
-    for (size_t i = fst; i < lst; ++i) {
-        std::string_view ln(sv.data() + ls[i].off, ls[i].len);
-        if (bl(ln)) {
-            if (!ln.empty() && ln.back() == '\n') ++tot;
-        } else {
-            tot += ln.size() - cs(ln, ciw, tw);
+    const size_t tot = [&] {
+        size_t sum = 0;
+        for (size_t i = fst; i < lst; ++i) {
+            std::string_view ln(sv.data() + ls[i].off, ls[i].len);
+            if (bl(ln)) {
+                if (!ln.empty() && ln.back() == '\n') ++sum;
+            } else {
+                sum += ln.size() - cs(ln, ciw, tw);
+            }
         }
-    }
+        return sum;
+    }();
 
     std::array<char, tot + 1> res{};
     size_t out = 0;
