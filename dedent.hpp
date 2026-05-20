@@ -4,19 +4,13 @@
 #include <array>
 #include <string_view>
 #include <cstddef>
-#include <algorithm>
 
 namespace d {
 namespace dt {
-    constexpr bool sp(char c) { // is_space_not_newline
-        return c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v';
+    constexpr bool sp(char c) {
+        return c == ' ' || c == '\t';
     }
-    constexpr size_t cw(char c, size_t tw = 4) { // char_width
-        if (c == ' ') return 1;
-        if (c == '\t') return tw;
-        return 0;
-    }
-    constexpr size_t lw(std::string_view sv, size_t tw = 4) { // leading_width
+    constexpr size_t lw(std::string_view sv, size_t tw = 4) {
         size_t w = 0;
         for (char c : sv) {
             if (c == ' ') w += 1;
@@ -25,11 +19,11 @@ namespace dt {
         }
         return w;
     }
-    constexpr bool bl(std::string_view sv) { // is_blank_line
+    constexpr bool bl(std::string_view sv) {
         for (char c : sv) if (c != '\n' && !sp(c)) return false;
         return true;
     }
-    constexpr size_t cs(std::string_view sv, size_t mx, size_t tw = 4) { // chars_to_skip
+    constexpr size_t cs(std::string_view sv, size_t mx, size_t tw = 4) {
         size_t sc = 0, aw = 0;
         for (char c : sv) {
             if (c == ' ') {
@@ -42,10 +36,17 @@ namespace dt {
         }
         return sc;
     }
-} // namespace dt
+}
+
+template <size_t N>
+constexpr std::string_view to_sv(const std::array<char, N>& a) {
+    size_t len = 0;
+    while (len < N && a[len] != '\0') ++len;
+    return std::string_view(a.data(), len);
+}
 
 template <size_t N, size_t TW = 4>
-constexpr auto dedent(const char (&in)[N]) {
+constexpr std::array<char, N> dedent(const char (&in)[N]) {
     using namespace dt;
     constexpr size_t tw = TW;
     std::string_view sv(in, N - 1);
@@ -67,9 +68,13 @@ constexpr auto dedent(const char (&in)[N]) {
     size_t fst = 0, lst = lc;
     while (fst < lst && bl({sv.data() + ls[fst].off, ls[fst].len})) ++fst;
     while (lst > fst && bl({sv.data() + ls[lst-1].off, ls[lst-1].len})) --lst;
-    if (fst >= lst) return std::array<char, 1>{'\0'};
 
-    size_t ciw = std::string_view::npos; // common_indent_width
+    if (fst >= lst) {
+        std::array<char, N> res{};
+        return res;
+    }
+
+    size_t ciw = std::string_view::npos;
     for (size_t i = fst; i < lst; ++i) {
         std::string_view ln(sv.data() + ls[i].off, ls[i].len);
         if (!bl(ln)) {
@@ -79,20 +84,7 @@ constexpr auto dedent(const char (&in)[N]) {
     }
     if (ciw == std::string_view::npos) ciw = 0;
 
-    const size_t tot = [&] {
-        size_t sum = 0;
-        for (size_t i = fst; i < lst; ++i) {
-            std::string_view ln(sv.data() + ls[i].off, ls[i].len);
-            if (bl(ln)) {
-                if (!ln.empty() && ln.back() == '\n') ++sum;
-            } else {
-                sum += ln.size() - cs(ln, ciw, tw);
-            }
-        }
-        return sum;
-    }();
-
-    std::array<char, tot + 1> res{};
+    std::array<char, N> res{};
     size_t out = 0;
     for (size_t i = fst; i < lst; ++i) {
         std::string_view ln(sv.data() + ls[i].off, ls[i].len);
@@ -103,15 +95,10 @@ constexpr auto dedent(const char (&in)[N]) {
             for (size_t j = sk; j < ln.size(); ++j) res[out++] = ln[j];
         }
     }
-    res[tot] = '\0';
+    res[out] = '\0';
     return res;
 }
 
-template <size_t N>
-constexpr std::string_view sv(const std::array<char, N>& a) {
-    return std::string_view(a.data(), N - 1);
 }
-
-} // namespace d
 
 #endif
