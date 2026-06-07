@@ -4,39 +4,55 @@
 #include <array>
 #include <string_view>
 #include <cstddef>
+#include <limits>
 
 namespace d {
 namespace dt {
-    constexpr bool sp(char c) {
-        return c == ' ' || c == '\t';
-    }
-    constexpr size_t lw(std::string_view sv, size_t tw = 4) {
-        size_t w = 0;
-        for (char c : sv) {
-            if (c == ' ') w += 1;
-            else if (c == '\t') w += tw;
-            else break;
-        }
-        return w;
-    }
-    constexpr bool bl(std::string_view sv) {
-        for (char c : sv) if (c != '\n' && !sp(c)) return false;
-        return true;
-    }
-    constexpr size_t cs(std::string_view sv, size_t mx, size_t tw = 4) {
-        size_t sc = 0, aw = 0;
-        for (char c : sv) {
-            if (c == ' ') {
-                if (aw + 1 > mx) break;
-                aw += 1; ++sc;
-            } else if (c == '\t') {
-                if (aw + tw > mx) break;
-                aw += tw; ++sc;
-            } else break;
-        }
-        return sc;
-    }
+
+constexpr bool sp(char c) {
+    return c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v';
 }
+
+template <size_t TW>
+constexpr size_t cw(char c) {
+    if (c == ' ') return 1;
+    if (c == '\t') return TW;
+    if (c == '\r' || c == '\f' || c == '\v') return 0;
+    return std::string_view::npos;
+}
+
+template <size_t TW>
+constexpr size_t lw(std::string_view sv) {
+    size_t w = 0;
+    for (char c : sv) {
+        size_t width = cw<TW>(c);
+        if (width == std::string_view::npos) break;
+        w += width;
+    }
+    return w;
+}
+
+constexpr bool bl(std::string_view sv) {
+    for (char c : sv)
+        if (c != '\n' && !sp(c))
+            return false;
+    return true;
+}
+
+template <size_t TW>
+constexpr size_t cs(std::string_view sv, size_t mx) {
+    size_t sc = 0, aw = 0;
+    for (char c : sv) {
+        size_t width = cw<TW>(c);
+        if (width == std::string_view::npos) break;
+        if (aw + width > mx) break;
+        aw += width;
+        ++sc;
+    }
+    return sc;
+}
+
+} // namespace dt
 
 template <size_t N>
 constexpr std::string_view to_sv(const std::array<char, N>& a) {
@@ -45,10 +61,16 @@ constexpr std::string_view to_sv(const std::array<char, N>& a) {
     return std::string_view(a.data(), len);
 }
 
-template <size_t N, size_t TW = 4>
+template <size_t N>
+constexpr std::string_view sv(const std::array<char, N>& a) {
+    return to_sv(a);
+}
+
+template <size_t TW = 4, size_t N>
 constexpr std::array<char, N> dedent(const char (&in)[N]) {
+    static_assert(TW > 0, "TabWidth must be greater than zero");
+
     using namespace dt;
-    constexpr size_t tw = TW;
     std::string_view sv(in, N - 1);
 
     struct Li { size_t off, len; };
@@ -67,7 +89,7 @@ constexpr std::array<char, N> dedent(const char (&in)[N]) {
 
     size_t fst = 0, lst = lc;
     while (fst < lst && bl({sv.data() + ls[fst].off, ls[fst].len})) ++fst;
-    while (lst > fst && bl({sv.data() + ls[lst-1].off, ls[lst-1].len})) --lst;
+    while (lst > fst && bl({sv.data() + ls[lst - 1].off, ls[lst - 1].len})) --lst;
 
     if (fst >= lst) {
         std::array<char, N> res{};
@@ -78,7 +100,7 @@ constexpr std::array<char, N> dedent(const char (&in)[N]) {
     for (size_t i = fst; i < lst; ++i) {
         std::string_view ln(sv.data() + ls[i].off, ls[i].len);
         if (!bl(ln)) {
-            size_t w = lw(ln, tw);
+            size_t w = lw<TW>(ln);
             if (w < ciw) ciw = w;
         }
     }
@@ -89,16 +111,17 @@ constexpr std::array<char, N> dedent(const char (&in)[N]) {
     for (size_t i = fst; i < lst; ++i) {
         std::string_view ln(sv.data() + ls[i].off, ls[i].len);
         if (bl(ln)) {
-            if (!ln.empty() && ln.back() == '\n') res[out++] = '\n';
+            res[out++] = '\n';
         } else {
-            size_t sk = cs(ln, ciw, tw);
-            for (size_t j = sk; j < ln.size(); ++j) res[out++] = ln[j];
+            size_t sk = cs<TW>(ln, ciw);
+            for (size_t j = sk; j < ln.size(); ++j)
+                res[out++] = ln[j];
         }
     }
     res[out] = '\0';
     return res;
 }
 
-}
+} // namespace d
 
 #endif
