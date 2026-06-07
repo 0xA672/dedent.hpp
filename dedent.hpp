@@ -13,12 +13,14 @@ constexpr bool sp(char c) {
     return c == ' ' || c == '\t' || c == '\r' || c == '\f' || c == '\v';
 }
 
+constexpr size_t stop = std::string_view::npos;
+
 template <size_t TW>
 constexpr size_t cw(char c) {
     if (c == ' ') return 1;
     if (c == '\t') return TW;
-    if (c == '\r' || c == '\f' || c == '\v') return 0;
-    return std::string_view::npos;
+    if (c == '\r' || c == '\f' || c == '\v') return stop;
+    return stop;
 }
 
 template <size_t TW>
@@ -26,7 +28,7 @@ constexpr size_t lw(std::string_view sv) {
     size_t w = 0;
     for (char c : sv) {
         size_t width = cw<TW>(c);
-        if (width == std::string_view::npos) break;
+        if (width == stop) break;
         w += width;
     }
     return w;
@@ -44,7 +46,7 @@ constexpr size_t cs(std::string_view sv, size_t mx) {
     size_t sc = 0, aw = 0;
     for (char c : sv) {
         size_t width = cw<TW>(c);
-        if (width == std::string_view::npos) break;
+        if (width == stop) break;
         if (aw + width > mx) break;
         aw += width;
         ++sc;
@@ -69,8 +71,14 @@ constexpr std::string_view sv(const std::array<char, N>& a) {
 template <size_t TW = 4, size_t N>
 constexpr std::array<char, N> dedent(const char (&in)[N]) {
     static_assert(TW > 0, "TabWidth must be greater than zero");
+    static_assert(TW < std::numeric_limits<size_t>::max() / 2,
+                  "TabWidth is too large");
 
-    using namespace dt;
+    if (N <= 1) {
+        std::array<char, N> res{};
+        return res;
+    }
+
     std::string_view sv(in, N - 1);
 
     struct Li { size_t off, len; };
@@ -88,8 +96,8 @@ constexpr std::array<char, N> dedent(const char (&in)[N]) {
     }
 
     size_t fst = 0, lst = lc;
-    while (fst < lst && bl({sv.data() + ls[fst].off, ls[fst].len})) ++fst;
-    while (lst > fst && bl({sv.data() + ls[lst - 1].off, ls[lst - 1].len})) --lst;
+    while (fst < lst && dt::bl({sv.data() + ls[fst].off, ls[fst].len})) ++fst;
+    while (lst > fst && dt::bl({sv.data() + ls[lst - 1].off, ls[lst - 1].len})) --lst;
 
     if (fst >= lst) {
         std::array<char, N> res{};
@@ -99,8 +107,8 @@ constexpr std::array<char, N> dedent(const char (&in)[N]) {
     size_t ciw = std::string_view::npos;
     for (size_t i = fst; i < lst; ++i) {
         std::string_view ln(sv.data() + ls[i].off, ls[i].len);
-        if (!bl(ln)) {
-            size_t w = lw<TW>(ln);
+        if (!dt::bl(ln)) {
+            size_t w = dt::lw<TW>(ln);
             if (w < ciw) ciw = w;
         }
     }
@@ -110,13 +118,9 @@ constexpr std::array<char, N> dedent(const char (&in)[N]) {
     size_t out = 0;
     for (size_t i = fst; i < lst; ++i) {
         std::string_view ln(sv.data() + ls[i].off, ls[i].len);
-        if (bl(ln)) {
-            res[out++] = '\n';
-        } else {
-            size_t sk = cs<TW>(ln, ciw);
-            for (size_t j = sk; j < ln.size(); ++j)
-                res[out++] = ln[j];
-        }
+        size_t sk = dt::cs<TW>(ln, ciw);
+        for (size_t j = sk; j < ln.size(); ++j)
+            res[out++] = ln[j];
     }
     res[out] = '\0';
     return res;
