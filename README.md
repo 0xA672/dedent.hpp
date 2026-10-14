@@ -28,7 +28,7 @@ int main() {
 ```
 ### Custom Tab Width
 ```cpp
-// Treat '\t' as 2 spaces instead of the default 4
+// Treat a tab as advancing to the next multiple of 2 columns
 constexpr auto text = d::dedent<2>(R"(
 	First line
 		Indented line
@@ -36,7 +36,7 @@ constexpr auto text = d::dedent<2>(R"(
 ```
 ### Handling Blank Lines
 * Blank lines at the very beginning and end of the input (containing only spaces, tabs, `\r`, `\f`, or `\v`) are removed entirely.
-* Internal blank lines are preserved; each contributes a single `\n` to the output.
+* Internal blank lines are preserved as a single line break: `\n` for LF input, `\r\n` for CRLF input.
 ```cpp
 constexpr auto poem = d::dedent(R"(
 
@@ -57,29 +57,35 @@ constexpr auto poem = d::dedent(R"(
 Compile‑time dedentation of the raw string literal `in`, also trimming surrounding blank lines.
 
 ### Template Parameter
-`TabWidth`: Visual column count for a `\t` character. Defaults to `4`.
+`TabWidth`: tab stop distance in columns. A `\t` advances to the next multiple of `TabWidth`. Tabs are never partially removed, so with mixed space/tab indentation a tab may be kept even when the spaces before it are trimmed. Defaults to `4`.
 
 ### Return Value
-`std::array<char, M>` where `M` is the length of the dedented string plus one (for the null terminator). Suitable for constructing a `std::string_view` or a C‑style string.
+`std::array<char, N>` where `N` is the size of the input literal (including its terminating `'\0'`). The dedented text starts at index 0, is terminated by `'\0'`, and the rest of the array is zero‑filled. Use `d::sv` to obtain a `std::string_view` of the dedented text.
+
+Bind the result to a named variable before calling `d::sv`; `d::sv(d::dedent(...))` is rejected at compile time because the view would refer to a temporary array:
+```cpp
+constexpr auto code = d::dedent(R"(...)");
+constexpr auto view = d::sv(code);  // ok
+```
 
 ### `d::sv(const std::array<char, N>& a)`
 ### Purpose
-Converts the array returned by `dedent` into a `std::string_view` for convenient output or further processing.
+Converts the array returned by `dedent` into a `std::string_view` for convenient output or further processing. The rvalue overload is deleted, so a view into a temporary array cannot be created by accident.
 
 Return Value
 `std::string_view` covering the dedented string (excluding the null terminator).
 
 ## Implementation Details
 The library uses internal helper functions inside the `d::dt` namespace, all of which are `constexpr`:
-* `sp(char)`: Checks for whitespace characters (, `\t`, `\r`, `\f`, `\v`).
-* `cw(char, TabWidth)`: Returns the visual leading width of a character.
-* `lw(string_view, TabWidth)`: Computes the total visual width of leading whitespace in a line.
-* `bl(string_view)`: Determines if a line is entirely blank.
-* `cs(string_view, maxWidth, TabWidth)`: Returns the number of leading characters to skip without exceeding `maxWidth`.
+* `is_space(char)`: Checks whether a character is `' '`, `'\t'`, `'\r'`, `'\f'`, or `'\v'`.
+* `width<TabWidth>(col, char)`: Returns the visual width of a leading‑whitespace character at column `col` (a `\t` advances to the next multiple of `TabWidth`), or a sentinel for any character that ends the leading whitespace run.
+* `leading_width<TabWidth>(string_view)`: Computes the total visual width of a line's leading whitespace.
+* `is_blank(string_view)`: Determines if a line contains only whitespace.
+* `chars_to_skip<TabWidth>(string_view, max_width)`: Returns the number of leading characters to skip so the remaining visual width does not exceed `max_width`.
 
 ## Requirements
 * C++17 or later (uses std::string_view, enhanced constexpr, etc.).
-* Supported on GCC 7+, Clang 5+, and MSVC 2017 15.7+.
+* Built and tested in CI with GCC, Clang, AppleClang, and MSVC (see `.github/workflows/ci.yml`).
 
 # License
 This project is licensed under the MIT License. See the LICENSE file for details.

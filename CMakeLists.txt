@@ -1,10 +1,13 @@
 cmake_minimum_required(VERSION 3.12)
 project(dedent
-    VERSION 1.0.0
+    VERSION 1.1.0
     DESCRIPTION "Compile-time string dedentation header-only library"
     HOMEPAGE_URL "https://github.com/0xA672/dedent.hpp"
     LANGUAGES CXX
 )
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
 
 add_library(dedent INTERFACE)
 add_library(dedent::dedent ALIAS dedent)
@@ -15,9 +18,6 @@ target_include_directories(dedent INTERFACE
 )
 
 target_compile_features(dedent INTERFACE cxx_std_17)
-
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
 
 install(TARGETS dedent EXPORT dedent-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -30,15 +30,8 @@ install(FILES "dedent.hpp"
     DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
 )
 
-set(config_template "${CMAKE_CURRENT_BINARY_DIR}/dedent-config.cmake.in")
-file(WRITE "${config_template}"
-"@PACKAGE_INIT@
-
-include(\"${CMAKE_CURRENT_LIST_DIR}/dedent-targets.cmake\")
-")
-
 configure_package_config_file(
-    "${config_template}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/dedent-config.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/dedent-config.cmake"
     INSTALL_DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/dedent"
 )
@@ -52,3 +45,10 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/dedent-config-version.cmake"
     DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/dedent"
 )
+
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+  enable_testing()
+  add_executable(dedent_tests tests/dedent_tests.cpp)
+  target_link_libraries(dedent_tests PRIVATE dedent::dedent)
+  add_test(NAME dedent_tests COMMAND dedent_tests)
+endif()
