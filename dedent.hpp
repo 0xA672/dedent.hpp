@@ -2,7 +2,6 @@
 #define DEDENT_HPP
 
 #include <array>
-#include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <string_view>
@@ -122,8 +121,8 @@ template <size_t TW = 4, size_t N>
             res[out++] = '\n';
         } else {
             size_t skip = dt::chars_to_skip<TW>(line, common_indent);
-            std::copy(line.data() + skip, line.data() + line.size(), res.data() + out);
-            out += line.size() - skip;
+            for (size_t j = skip; j < line.size(); ++j)
+                res[out++] = line[j];
         }
         p = line_end;
     }
