@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 project(dedent
-    VERSION 1.1.0
+    VERSION 1.1.1
     DESCRIPTION "Compile-time string dedentation header-only library"
     HOMEPAGE_URL "https://github.com/0xA672/dedent.hpp"
     LANGUAGES CXX
