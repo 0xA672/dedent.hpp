@@ -124,6 +124,30 @@ static_assert(d::sv(nested) == "if (x) {\n    y();\n}\n");
 constexpr auto zero_indent = d::dedent("    a\nb\n    c\n");
 static_assert(d::sv(zero_indent) == "    a\nb\n    c\n");
 
+// --- Blank-line and trailing-newline edge cases ------------------------------
+
+// CRLF blank line between non-blank lines, with no trailing newline.
+constexpr auto crlf_blank_tail = d::dedent("    a\r\n      \r\n    b");
+static_assert(d::sv(crlf_blank_tail) == "a\r\n\r\nb");
+
+// Leading + internal blank lines with no trailing newline.
+constexpr auto edge_blank_tail = d::dedent("\n\n    a\n      \n    b");
+static_assert(d::sv(edge_blank_tail) == "a\n\nb");
+
+// Long literal: exercises a large N on the dedent path.
+constexpr char long_literal[] =
+    "    line one\n"
+    "    line two\n"
+    "    line three\n"
+    "    line four\n"
+    "    line five\n"
+    "    line six\n"
+    "    line seven\n"
+    "    line eight\n";
+constexpr auto long_code = d::dedent(long_literal);
+static_assert(d::sv(long_code) ==
+    "line one\nline two\nline three\nline four\nline five\nline six\nline seven\nline eight\n");
+
 // --- API: d::sv rejects rvalue arrays ----------------------------------------
 
 template <class T, class = void>

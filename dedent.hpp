@@ -2,6 +2,7 @@
 #define DEDENT_HPP
 
 #include <array>
+#include <algorithm>
 #include <cstddef>
 #include <limits>
 #include <string_view>
@@ -83,63 +84,48 @@ template <size_t TW = 4, size_t N>
     static_assert(TW < std::numeric_limits<size_t>::max() / 2,
                   "TabWidth is too large");
 
-    if (N <= 1) {
-        std::array<char, N> res{};
-        return res;
-    }
+    std::array<char, N> res{};
+    if (N <= 1) return res;
 
     std::string_view input(in, N - 1);
 
-    struct LineRef { size_t off, len; };
-    std::array<LineRef, N> lines{};
-    size_t line_count = 0, p = 0;
-    while (p < input.size()) {
-        size_t nl = input.find('\n', p);
-        if (nl == std::string_view::npos) {
-            lines[line_count++] = {p, input.size() - p};
-            break;
-        } else {
-            lines[line_count++] = {p, nl - p + 1};
-            p = nl + 1;
-        }
-    }
-
-    // Trim leading and trailing blank lines.
-    size_t first = 0, last = line_count;
-    while (first < last && dt::is_blank({input.data() + lines[first].off, lines[first].len})) ++first;
-    while (last > first && dt::is_blank({input.data() + lines[last - 1].off, lines[last - 1].len})) --last;
-
-    if (first >= last) {
-        std::array<char, N> res{};
-        return res;
-    }
-
-    // Common indent: minimum leading width over all non-blank lines.
-    // `first < last` guarantees that at least one non-blank line exists.
+    // First/last non-blank lines and the common indent over them.
+    size_t first_off = std::string_view::npos;
+    size_t last_end  = 0;
     size_t common_indent = std::string_view::npos;
-    for (size_t i = first; i < last; ++i) {
-        std::string_view line(input.data() + lines[i].off, lines[i].len);
+    for (size_t p = 0; p < input.size();) {
+        size_t nl = input.find('\n', p);
+        size_t line_end = (nl == std::string_view::npos) ? input.size() : nl + 1;
+        std::string_view line(input.data() + p, line_end - p);
         if (!dt::is_blank(line)) {
+            if (first_off == std::string_view::npos) first_off = p;
+            last_end = line_end;
             size_t w = dt::leading_width<TW>(line);
             if (w < common_indent) common_indent = w;
         }
+        if (nl == std::string_view::npos) break;
+        p = nl + 1;
     }
 
-    std::array<char, N> res{};
+    if (first_off == std::string_view::npos) return res;   // all blank
+
+    // Emit [first_off, last_end) with the common indent stripped. Blank
+    // lines collapse to a single break; a '\r' before the break is kept.
     size_t out = 0;
-    for (size_t i = first; i < last; ++i) {
-        std::string_view line(input.data() + lines[i].off, lines[i].len);
-        // Internal blank lines collapse to a single line break. Such a
-        // line always ends with '\n' here: trailing blank lines were
-        // trimmed above, so it has a following line.
+    for (size_t p = first_off; p < last_end;) {
+        size_t nl = input.find('\n', p);
+        size_t line_end =
+            (nl == std::string_view::npos || nl + 1 > last_end) ? last_end : nl + 1;
+        std::string_view line(input.data() + p, line_end - p);
         if (dt::is_blank(line)) {
             if (line.size() >= 2 && line[line.size() - 2] == '\r') res[out++] = '\r';
             res[out++] = '\n';
-            continue;
+        } else {
+            size_t skip = dt::chars_to_skip<TW>(line, common_indent);
+            std::copy(line.data() + skip, line.data() + line.size(), res.data() + out);
+            out += line.size() - skip;
         }
-        size_t skip = dt::chars_to_skip<TW>(line, common_indent);
-        for (size_t j = skip; j < line.size(); ++j)
-            res[out++] = line[j];
+        p = line_end;
     }
     res[out] = '\0';
     return res;
